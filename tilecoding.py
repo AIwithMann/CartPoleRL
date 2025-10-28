@@ -11,11 +11,11 @@ class TileCoding:
         self.nTilings = num_tilings
         self.N = N
 
-    def tileIndices(self,x):
-        features = np.zeros(self.N)
+    def tileIndices(self, x):
+        indices = []
         for t in range(self.nTilings):
-            offsets = (t/self.nTilings)*self.tileWidth
-            indices = np.floor((x+offsets-self.low)/self.tileWidth).astype(int)
-            hashVal = hash((t,*indices)) % self.N
-            features[hashVal] = 1
-        return features
+            offsets = (t / self.nTilings) * self.tileWidth
+            tile = np.floor((x + offsets - self.low) / self.tileWidth).astype(int)
+            hashVal = hash((t, *tile)) % self.N
+            indices.append(hashVal)
+        return indices
