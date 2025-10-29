@@ -1,5 +1,5 @@
 import gymnasium as gym
-import torch 
+import math as m
 import numpy as np
 from tilecoding import TileCoding
 
@@ -14,12 +14,13 @@ class SarsaOne:
         self.maxIter = maxIter
         self.numActions = self.env.action_space.n
 
-        self.weights = np.zeros(self.tiles.N)
+        self.weights = np.zeros(self.tiles.N * self.numActions)
     
     def get_q_value(self,state_features:np.ndarray, action):
+        actionOffset = m.floor((action * self.tiles.N)/self.numActions)
         q = 0.0
         for feature_idx in state_features:
-            q += self.weights[feature_idx]
+            q += self.weights[actionOffset + feature_idx]
         return q 
 
     def select_action(self, state_features:np.ndarray):
@@ -30,11 +31,12 @@ class SarsaOne:
     
     def update(self, state_features, action, reward, next_state_features, next_action):
         qC = self.get_q_value(state_features, action)
-        qN = self.get_q_value(next_state_features, next_action)\
-        
+        qN = self.get_q_value(next_state_features, next_action)
+        actionOffset = m.floor((action * self.tiles.N)/self.numActions)
         td = reward + self.g * qN - qC
         for feature_idx in state_features:
-            self.weights[feature_idx] += self.a * td
+            self.weights[actionOffset + feature_idx] += self.a* td 
+
 
     def decayEpsilon(self, episode, total_episodes):
         self.e = max(0.01, 1.0 * (1 - episode / total_episodes))
@@ -42,10 +44,13 @@ class SarsaOne:
 #driver code
 
 env = gym.make("CartPole-v1")
-tileCoding = TileCoding(10,4,np.array([-2.4,-1.0,-0.2,-1.0]), np.array([2.4,1.0,0.2,1.0]),1024)
+low = np.array([-4.8, -5.0, -0.418, -5.0])
+high = np.array([4.8, 5.0, 0.418, 5.0])
+tileCoding = TileCoding(10,4,low, high,8192)
 
 agent = SarsaOne(env, tileCoding,0.99,0.2,0.1,1000)
 episodeRewards = []
+print(tileCoding.tileWidth)
 for episode in range(1000):
     obs, info = env.reset()
     stateFeatures = tileCoding.tileIndices(obs)
@@ -68,8 +73,8 @@ for episode in range(1000):
     episodeRewards.append(episodeReward)
     agent.decayEpsilon(episode, 1000)
 
-    if (episode + 1) % 10 == 0:
-        avg_reward = np.mean(episodeRewards[-10:])
+    if (episode + 1) % 50 == 0:
+        avg_reward = np.mean(episodeRewards[-50:])
         print(f"Episode {episode + 1}: Avg Reward (last 10) = {avg_reward:.2f}, ")
         print(f"Epsilon = {agent.e:.3f}")
 
