@@ -34,6 +34,7 @@ class SarsaOne:
         qN = self.get_q_value(next_state_features, next_action)
         actionOffset = m.floor((action * self.tiles.N)/self.numActions)
         td = reward + self.g * qN - qC
+        td = np.clip(td, -10, 10)
         for feature_idx in state_features:
             self.weights[actionOffset + feature_idx] += self.a* td 
 
@@ -42,41 +43,37 @@ class SarsaOne:
         self.e = max(0.01, 1.0 * (1 - episode / total_episodes))
 
 #driver code
+def getFinalAverage(gamma, alpha, epsilon):
+    #env = gym.make("CartPole-v1",render_mode = 'human')
+    env = gym.make("CartPole-v1")
+    low = np.array([-4.8, -5.0, -0.418, -5.0])
+    high = np.array([4.8, 5.0, 0.418, 5.0])
+    tileCoding = TileCoding(10,4,low, high,8192)
 
-env = gym.make("CartPole-v1")
-low = np.array([-4.8, -5.0, -0.418, -5.0])
-high = np.array([4.8, 5.0, 0.418, 5.0])
-tileCoding = TileCoding(10,4,low, high,8192)
+    agent = SarsaOne(env, tileCoding,gamma,epsilon,alpha,1000)
+    episodeRewards = []
+    print(tileCoding.tileWidth)
+    for episode in range(1000):
+        obs, info = env.reset()
+        stateFeatures = tileCoding.tileIndices(obs)
+        action = agent.select_action(stateFeatures)
 
-agent = SarsaOne(env, tileCoding,0.99,0.2,0.1,1000)
-episodeRewards = []
-print(tileCoding.tileWidth)
-for episode in range(1000):
-    obs, info = env.reset()
-    stateFeatures = tileCoding.tileIndices(obs)
-    action = agent.select_action(stateFeatures)
+        episodeReward = 0
+        done = False
 
-    episodeReward = 0
-    done = False
+        while not done:
+            obs, reward, terminated, truncated, _ = env.step(action)
+            nextStateFeatures = tileCoding.tileIndices(obs)
+            nextAction = agent.select_action(nextStateFeatures)
 
-    while not done:
-        obs, reward, terminated, truncated, _ = env.step(action)
-        nextStateFeatures = tileCoding.tileIndices(obs)
-        nextAction = agent.select_action(nextStateFeatures)
+            agent.update(stateFeatures, action, reward, nextStateFeatures, nextAction)
 
-        agent.update(stateFeatures, action, reward, nextStateFeatures, nextAction)
-
-        episodeReward += reward
-        stateFeatures = nextStateFeatures
-        action = nextAction
-        done = terminated or truncated
-    episodeRewards.append(episodeReward)
-    agent.decayEpsilon(episode, 1000)
-
-    if (episode + 1) % 50 == 0:
-        avg_reward = np.mean(episodeRewards[-50:])
-        print(f"Episode {episode + 1}: Avg Reward (last 10) = {avg_reward:.2f}, ")
-        print(f"Epsilon = {agent.e:.3f}")
-
-env.close()
-print("Training Complete!")
+            episodeReward += reward
+            stateFeatures = nextStateFeatures
+            action = nextAction
+            done = terminated or truncated
+        episodeRewards.append(episodeReward)
+        agent.decayEpsilon(episode, 1000)
+    env.close()
+    return np.mean(episodeRewards[-100:])
+getFinalAverage(0.3,0.1,0.9)
