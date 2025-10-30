@@ -2,6 +2,7 @@ import numpy as np
 import gymnasium as gym
 import math as m
 from tilecoding import TileCoding
+
 class SarsaN:
     def __init__(self, env:gym.envs, tc:TileCoding, gamma:float, epsilon:float, alpha:float, maxIter:int, n:int):
         self.env = env
@@ -16,7 +17,7 @@ class SarsaN:
         self.weights = np.zeros(self.tileCoding.N * self.numActions)
 
     def Q(self,stateFeatures:list, action:int)->float:
-        offset = m.floor((action * self.tileCoding.N)/self.numActions)
+        offset = action * self.tileCoding.N
         q = 0.0
         for featureIdx in stateFeatures:
             q += self.weights[offset + featureIdx]
@@ -28,22 +29,13 @@ class SarsaN:
         qs = [self.Q(stateFeatures,a) for a in range(self.numActions)]
         return np.argmax(qs)
     
-    def update(self, stateFeatures:list, action:int, G:float, tauStateFeatures:list,tauAction:int):
-        qC = self.Q(stateFeatures,action)
-        qT = self.Q(tauStateFeatures,tauAction)
-        td = G + self.g ** self.nSteps * qT 
-        td = np.clip(td,-10,10)
-
-        offset = m.floor((action * self.tileCoding.N)/self.numActions)
-        for featureIdx in stateFeatures:
-            self.weights[offset + featureIdx] += self.a * td 
     
     def decayEpsilon(self, episode, totalEpisodes):
         self.e = max(0.01, (1 - episode / totalEpisodes))
     
 def getFinalAverage(gamma, alpha, epsilon, N):
     env = gym.make("CartPole-v1")
-    print("done")
+
     low = np.array([-4.8, -5.0, -0.418,-5.0])
     high = np.array([4.8, 5.0, 0.418, 5.0])
     tc = TileCoding(10,4,low,high,8192)
@@ -53,7 +45,7 @@ def getFinalAverage(gamma, alpha, epsilon, N):
     for episode in range(1000):
         states = []
         actions = []
-        rewards = [None]
+        rewards = [0]
         
         obs, _ = env.reset()
         stateFeatures = tc.tileIndices(obs)
@@ -61,8 +53,6 @@ def getFinalAverage(gamma, alpha, epsilon, N):
         
         states.append(stateFeatures)
         actions.append(a)
-
-        done = False 
         
         t = 0
         T = float('inf')
@@ -81,8 +71,8 @@ def getFinalAverage(gamma, alpha, epsilon, N):
             tau = t - agent.nSteps + 1
             if tau >= 0:
                 G = 0
-                for i in range(tau+1, min(tau+agent.nSteps, T+1)):
-                    G += agent.g ** (i-tau-1) * rewards[i]
+                for i in range(tau+1, min(tau+agent.nSteps, T)+1):
+                    G += (agent.g ** (i-tau-1)) * rewards[i]
                 
                 if tau + agent.nSteps < T:
                     sTauN = states[tau+agent.nSteps]
@@ -90,16 +80,19 @@ def getFinalAverage(gamma, alpha, epsilon, N):
                     G += (agent.g ** agent.nSteps) * agent.Q(sTauN, aTauN)
                 sTau = states[tau]
                 aTau = actions[tau]
-                
-                offset = m.floor((aTau * agent.tileCoding.N)/agent.numActions)
+                qTau = agent.Q(sTau, aTau)
+                td = np.clip((G-qTau), -10, 10)
+
+                offset = m.floor(aTau * agent.tileCoding.N)
                 for featureIdx in sTau:
-                    agent.weights[offset + featureIdx] += agent.a * (G - agent.Q(sTau, aTau))
+                    agent.weights[offset + featureIdx] += agent.a * td
             
             if tau == T - 1:
                 episodeRewards.append(sum(rewards[1:]))
                 break 
             t+=1
 
-    print(np.mean(episodeRewards[-100:]))
+        agent.decayEpsilon(episode,1000)
+    return np.mean(episodeRewards[-100:])
 
-getFinalAverage(0.9,0.2,0.3,2)
+print(getFinalAverage(0.99,0.2,0.3,4))
