@@ -15,11 +15,11 @@ This repository implements function approximation techniques for the CartPole co
 CartPoleRL/
 ├── tilecoding.py          # Tile coding implementation
 ├── sarsa.py               # 1-step Semi-Gradient SARSA
-├── sarsaN.py              # n-step Semi-Gradient SARSA
-├── evaluate.py            # Hyperparameter tuning for 1-step
-├── evaluation(n-step).py  # Hyperparameter tuning for n-step
-├── evaluation.md          # Analysis of 1-step results
-├── analysis_n_step.md     # Analysis of n-step results
+├── sarsaN.py                  # n-step Semi-Gradient SARSA
+├── evaluate(1-step).py            # Hyperparameter tuning for 1-step
+├── evaluate(n-step).py  # Hyperparameter tuning for n-step
+├── evaluation(1-step).md          # Analysis of 1-step results
+├── evaluation(n-step).md     # Analysis of n-step results
 └── README.md              # This file
 ```
 
